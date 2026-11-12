@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>纸箱堆码层数计算器 · 包装工程</title>
+<style>
+  :root{
+    --ink:#1a1f2e; --sub:#5b6474; --line:#d9dee7; --bg:#f4f6f9;
+    --card:#ffffff; --accent:#1f5fbf; --accent-soft:#e8f0fd;
+    --ok:#1a7f4e; --ok-soft:#e6f4ec; --warn:#b3660a; --warn-soft:#fdf3e3;
+    --bad:#b3261e; --bad-soft:#fbeae8;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:"Microsoft YaHei","PingFang SC","Segoe UI",sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px; line-height:1.55;
+  }
+  .wrap{max-width:1060px; margin:0 auto; padding:24px 20px 40px;}
+  header.bar{
+    display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px;
+    border-bottom:2px solid var(--ink); padding-bottom:10px; margin-bottom:18px;
+  }
+  header.bar h1{font-size:20px; letter-spacing:.5px;}
+  header.bar .meta{color:var(--sub); font-size:12px;}
+
+  .grid{display:grid; grid-template-columns:340px 1fr; gap:18px; align-items:start;}
+  @media (max-width:860px){ .grid{grid-template-columns:1fr;} }
+
+  .card{background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px 18px;}
+  .card h2{font-size:14px; margin-bottom:12px; padding-left:9px; border-left:4px solid var(--accent);}
+
+  .field{margin-bottom:11px;}
+  .field label{display:block; font-size:12.5px; color:var(--sub); margin-bottom:3px;}
+  .field .row{display:flex; gap:8px;}
+  .field input,.field select{
+    width:100%; padding:6px 9px; border:1px solid var(--line); border-radius:5px;
+    font-size:14px; background:#fff; color:var(--ink); font-family:inherit;
+  }
+  .field input:focus,.field select:focus{outline:none; border-color:var(--accent);}
+  .field .unit{align-self:center; color:var(--sub); font-size:12px; white-space:nowrap;}
+  .field .hint{font-size:11.5px; color:var(--sub); margin-top:2px;}
+
+  fieldset{border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin-bottom:12px;}
+  fieldset legend{font-size:12.5px; color:var(--sub); padding:0 6px;}
+  .seg{display:flex; border:1px solid var(--line); border-radius:5px; overflow:hidden;}
+  .seg button{
+    flex:1; padding:6px 4px; border:none; background:#fff; cursor:pointer;
+    font-size:13px; font-family:inherit; color:var(--sub); border-right:1px solid var(--line);
+  }
+  .seg button:last-child{border-right:none;}
+  .seg button.on{background:var(--accent); color:#fff;}
+  #ectFields{display:none;}
+  #ectFields.show{display:block;}
+
+  .kpi{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px;}
+  .kpi .box{border:1px solid var(--line); border-radius:7px; padding:10px 12px; text-align:center;}
+  .kpi .num{font-size:30px; font-weight:700; line-height:1.15;}
+  .kpi .cap{font-size:12px; color:var(--sub);}
+  .kpi .box.final{background:var(--accent-soft); border-color:var(--accent);}
+  .kpi .box.final .num{color:var(--accent);}
+
+  table{width:100%; border-collapse:collapse; font-size:13px; margin:6px 0 10px;}
+  th,td{border:1px solid var(--line); padding:5px 9px; text-align:left;}
+  th{background:#eef1f6; font-weight:600; font-size:12.5px;}
+  td.v{font-variant-numeric:tabular-nums; font-weight:600;}
+
+  .note{font-size:12.5px; border-radius:6px; padding:8px 11px; margin-top:10px;}
+  .note.ok{background:var(--ok-soft); color:var(--ok);}
+  .note.warn{background:var(--warn-soft); color:var(--warn);}
+  .note.bad{background:var(--bad-soft); color:var(--bad);}
+
+  .formula{font-size:12.5px; color:var(--sub); background:#f6f8fb; border:1px dashed var(--line);
+    border-radius:6px; padding:9px 12px; margin-bottom:12px;}
+  .formula b{color:var(--ink);}
+
+  #stackSVG{display:block; margin:4px auto 0;}
+
+  .actions{display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;}
+  .btn{
+    padding:8px 18px; border-radius:6px; border:1px solid var(--accent); cursor:pointer;
+    font-size:14px; font-family:inherit;
+  }
+  .btn.primary{background:var(--accent); color:#fff;}
+  .btn.primary:hover{filter:brightness(1.08);}
+  .btn.ghost{background:#fff; color:var(--accent);}
+
+  footer.disc{margin-top:22px; font-size:11.5px; color:var(--sub); border-top:1px solid var(--line); padding-top:10px;}
+
+  @media print{
+    body{background:#fff; font-size:12px;}
+    .wrap{max-width:none; padding:0;}
+    .no-print{display:none !important;}
+    .grid{grid-template-columns:1fr; gap:12px;}
+    .card{border:none; padding:8px 0; page-break-inside:avoid;}
+    header.bar{margin-bottom:10px;}
+    .kpi .num{font-size:24px;}
+    footer.disc{margin-top:14px;}
+  }
+  @page{size:A4; margin:14mm;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="bar">
+    <h1>📦 纸箱堆码层数计算器</h1>
+    <span class="meta">依据 McKee 公式 / GB·ISTA 工程实践 · <span id="stamp"></span></span>
+  </header>
+
+  <div class="grid">
+    <!-- ============ 输入 ============ -->
+    <div class="card">
+      <h2>输入参数</h2>
+
+      <div class="field">
+        <label>纸箱外形尺寸 长 × 宽 × 高 (mm)</label>
+        <div class="row">
+          <input id="inL" type="number" value="300" min="1" aria-label="长">
+          <input id="inW" type="number" value="300" min="1" aria-label="宽">
+          <input id="inH" type="number" value="200" min="1" aria-label="高">
+        </div>
+        <div class="hint">以外尺寸为准；周长 Z = 2×(长+宽)</div>
+      </div>
+
+      <fieldset>
+        <legend>抗压强度来源</legend>
+        <div class="seg" id="segMode">
+          <button data-mode="bct" class="on">实测空箱抗压 BCT</button>
+          <button data-mode="ect">边压 ECT 估算</button>
+        </div>
+        <div id="bctFields" style="margin-top:9px;">
+          <div class="field">
+            <label>空箱抗压强度 BCT (N)</label>
+            <input id="inBCT" type="number" value="3000" min="1">
+            <div class="hint">实验室压力机实测（GB/T 4857.4 / ISTA），最准确</div>
+          </div>
+        </div>
+        <div id="ectFields" style="margin-top:9px;">
+          <div class="field">
+            <label>边压强度 ECT (N/m)</label>
+            <input id="inECT" type="number" value="3000" min="1">
+          </div>
+          <div class="field">
+            <label>纸板厚度 t (mm)</label>
+            <input id="inT" type="number" value="6" step="0.1" min="0.5">
+            <div class="hint">McKee：BCT ≈ 5.87 × ECT × √(t × Z)，误差约 ±10%</div>
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="field">
+        <label>单箱毛重 G (kg)</label>
+        <input id="inG" type="number" value="5.5" step="0.1" min="0.1">
+      </div>
+
+      <div class="field">
+        <label>安全系数 SF</label>
+        <select id="inSF">
+          <option value="2.5">2.5 — 短期存放 / 干燥环境</option>
+          <option value="3">3 — 一般仓库 / 1~3 个月</option>
+          <option value="3.5">3.5 — 一般仓库 / 长期存放</option>
+          <option value="4" selected>4 — 高湿 / 长期 / 海运集装箱</option>
+          <option value="5">5 — 高湿长期 + 托盘约束恶劣</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>堆码状态（载荷分配修正）</label>
+        <select id="inAlign">
+          <option value="1" selected>柱式对齐，箱角上下对正 (×1.0)</option>
+          <option value="0.9">轻微错位 (×0.9)</option>
+          <option value="0.75">明显悬空 / 交错堆码 (×0.75)</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>仓库允许堆码总高 H<sub>max</sub> (m)</label>
+        <input id="inHmax" type="number" value="2" step="0.1" min="0.5">
+      </div>
+    </div>
+
+    <!-- ============ 结果 ============ -->
+    <div class="card">
+      <h2>计算结果</h2>
+
+      <div class="kpi">
+        <div class="box"><div class="num" id="kNstr">—</div><div class="cap">强度允许层数</div></div>
+        <div class="box"><div class="num" id="kNhei">—</div><div class="cap">限高允许层数</div></div>
+        <div class="box final"><div class="num" id="kNfin">—</div><div class="cap">最大堆叠层数</div></div>
+      </div>
+
+      <table>
+        <tr><th>项目</th><th>数值</th><th>说明</th></tr>
+        <tr><td>纸箱周长 Z</td><td class="v" id="rZ">—</td><td>2 × (长 + 宽)</td></tr>
+        <tr><td>空箱抗压 BCT</td><td class="v" id="rBCT">—</td><td id="rBCTnote">—</td></tr>
+        <tr><td>有效抗压 BCT′</td><td class="v" id="rBCTeff">—</td><td>BCT × 堆码状态修正</td></tr>
+        <tr><td>底层单箱许用堆载</td><td class="v" id="rAllow">—</td><td>BCT′ ÷ SF</td></tr>
+        <tr><td>设计堆码时底箱实载</td><td class="v" id="rLoad">—</td><td>(层数−1) × G × 9.8</td></tr>
+        <tr><td>实际安全系数</td><td class="v" id="rSFa">—</td><td>BCT′ ÷ 底箱实载</td></tr>
+        <tr><td>堆码总高</td><td class="v" id="rHgt">—</td><td>层数 × 箱高</td></tr>
+      </table>
+
+      <div class="formula" id="fStep"></div>
+      <div class="note ok" id="verdict"></div>
+
+      <div id="stackBox" style="margin-top:14px;"></div>
+    </div>
+  </div>
+
+  <div class="actions no-print">
+    <button class="btn primary" onclick="window.print()">🖨️ 打印 / 导出计算书（PDF）</button>
+    <button class="btn ghost" onclick="resetCase()">↺ 恢复示例案例（300×300×200 · 5.5kg）</button>
+  </div>
+
+  <footer class="disc">
+    工程提示：① BCT 为新箱干态瞬时值，高湿环境瓦楞纸板强度可下降 30%~60%，已由安全系数覆盖，请按仓储环境选择 SF；
+    ② 堆码蠕变：长期静载下纸箱强度会随时间衰减，存放超过 3 个月建议 SF ≥ 4；
+    ③ 300×300 类小箱优先确认托盘面利用与护板限位，悬空超过箱长 1/3 时按「明显悬空」修正；
+    ④ 本工具为工程估算，<b>最终以实验室实测（GB/T 4857.4、ISTA 3E/6-AMAZON 等）与实仓堆码验证为准</b>。
+  </footer>
+</div>
+
+<script>
+// ================= 计算核（纯函数，可独立测试） =================
+function calcStack(inp){
+  const Z = 2 * (inp.L + inp.W);                       // 周长 mm
+  const bct = inp.mode === 'bct'
+    ? inp.bct
+    : 5.87 * (inp.ect / 1000) * Math.sqrt(inp.t * Z);  // McKee, N
+  const bctEff = bct * inp.align;                      // 堆码状态修正后
+  const gN = inp.G * 9.8;                              // 单箱重 N
+  const allow = bctEff / inp.SF;                       // 底箱许用堆载 N
+  const nStrength = Math.max(1, Math.floor(allow / gN) + 1);
+  const nHeight   = Math.max(1, Math.floor(inp.hMax * 1000 / inp.H));
+  const nFinal    = Math.min(nStrength, nHeight);
+  const load      = (nFinal - 1) * gN;
+  const sfActual  = load > 0 ? bctEff / load : Infinity;
+  const height    = nFinal * inp.H;
+  return { Z, bct, bctEff, gN, allow, nStrength, nHeight, nFinal, load, sfActual, height };
+}
+
+// ================= UI =================
+const $ = id => document.getElementById(id);
+let mode = 'bct';
+
+function readInputs(){
+  return {
+    L:+$('inL').value||0, W:+$('inW').value||0, H:+$('inH').value||0,
+    mode,
+    bct:+$('inBCT').value||0,
+    ect:+$('inECT').value||0, t:+$('inT').value||0,
+    G:+$('inG').value||0,
+    SF:+$('inSF').value,
+    align:+$('inAlign').value,
+    hMax:+$('inHmax').value||0
+  };
+}
+function fmt(n, d){ return (d===undefined?2:d); }
+function nf(n,d=2){ return Number.isFinite(n)? n.toLocaleString('zh-CN',{maximumFractionDigits:d, minimumFractionDigits:0}) : '—'; }
+
+function render(){
+  const inp = readInputs();
+  const ok = inp.L>0 && inp.W>0 && inp.H>0 && inp.G>0 && inp.hMax>0 && (mode==='bct'? inp.bct>0 : (inp.ect>0 && inp.t>0));
+  if(!ok){
+    ['kNstr','kNhei','kNfin'].forEach(k=>$(k).textContent='—');
+    $('verdict').className='note bad';
+    $('verdict').textContent='⚠ 参数不完整，请检查输入。';
+    return;
+  }
+  const r = calcStack(inp);
+  $('kNstr').textContent = r.nStrength;
+  $('kNhei').textContent = r.nHeight;
+  $('kNfin').textContent = r.nFinal;
+
+  $('rZ').textContent = nf(r.Z,0)+' mm';
+  $('rBCT').textContent = nf(r.bct,0)+' N';
+  $('rBCTnote').textContent = mode==='bct' ? '实测值直接采用' : 'McKee 估算值（±10%）';
+  $('rBCTeff').textContent = nf(r.bctEff,0)+' N';
+  $('rAllow').textContent = nf(r.allow,0)+' N';
+  $('rLoad').textContent = nf(r.load,0)+' N（'+nf(r.load/9.8,1)+' kg）';
+  $('rSFa').textContent = nf(r.sfActual);
+  $('rHgt').textContent = nf(r.height,0)+' mm（'+nf(r.height/1000,2)+' m）';
+
+  const limiting = r.nStrength <= r.nHeight ? '强度' : '仓库限高';
+  let cls='ok', txt;
+  if(r.sfActual >= inp.SF){
+    txt = '✅ 校核通过：最大可堆 '+r.nFinal+' 层（受'+limiting+'控制），底箱实载 '+nf(r.load,0)+' N，实际安全系数 '+nf(r.sfActual)+' ≥ 设计 SF '+inp.SF+'。';
+  }else{
+    cls='bad';
+    txt = '❌ 校核不通过：请降低层数或更换更高强度纸板。';
+  }
+  if(r.nHeight < r.nStrength){
+    txt += ' 提示：若仓库净高放宽，强度上还可堆到 '+r.nStrength+' 层。';
+    cls = 'warn';
+  }
+  if(inp.align < 1){
+    txt += ' 已按堆码状态 ×'+inp.align+' 折减抗压强度。';
+  }
+  $('verdict').className = 'note '+cls;
+  $('verdict').textContent = txt;
+
+  $('fStep').innerHTML =
+    '计算过程：Z = 2×('+inp.L+'+'+inp.W+') = <b>'+r.Z+' mm</b>；'+
+    (mode==='bct'
+      ? 'BCT = 实测 <b>'+nf(inp.bct,0)+' N</b>'
+      : 'BCT = 5.87 × '+(inp.ect/1000)+' × √('+inp.t+'×'+r.Z+') = <b>'+nf(r.bct,0)+' N</b>')+
+    '；BCT′ = '+nf(r.bct,0)+' × '+inp.align+' = <b>'+nf(r.bctEff,0)+' N</b>；'+
+    'N<sub>强度</sub> = ⌊ BCT′ ÷ (SF × G × 9.8) ⌋ + 1 = ⌊ '+nf(r.bctEff,0)+' ÷ '+nf(inp.SF*inp.G*9.8,0)+' ⌋ + 1 = <b>'+r.nStrength+'</b>；'+
+    'N<sub>限高</sub> = ⌊ '+(inp.hMax*1000)+' ÷ '+inp.H+' ⌋ = <b>'+r.nHeight+'</b>；'+
+    '取小值 → <b>'+r.nFinal+' 层</b>';
+
+  drawStack(inp, r);
+}
+
+function drawStack(inp, r){
+  const show = Math.min(r.nFinal, 14);
+  const bw=64, bh=30, gap=3, x0=90;
+  const H = show*(bh+gap)+28, W=320;
+  let s='<svg id="stackSVG" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="堆码示意">';
+  s+='<text x="'+x0+'" y="13" font-size="11" fill="#5b6474">堆码示意（'+show+' 层'+(r.nFinal>show?'，共 '+r.nFinal+' 层':'')+'）</text>';
+  for(let i=0;i<show;i++){
+    const y = 22 + (show-1-i)*(bh+gap);
+    const bottom = i===0;
+    s+='<rect x="'+x0+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="2" fill="'+(bottom?'#1f5fbf':'#c7dbf7')+'" stroke="#1f5fbf" stroke-width="1"/>';
+    if(bottom){
+      s+='<text x="'+(x0+bw/2)+'" y="'+(y+bh/2+4)+'" font-size="10.5" fill="#fff" text-anchor="middle" font-weight="bold">底箱 '+nf(r.load,0)+'N</text>';
+    }
+  }
+  if(show>=2){
+    const yTop=22+bh/2+4, yBot=22+(bh+gap)*(show-1)+bh/2+4;
+    s+='<line x1="30" y1="'+yTop+'" x2="30" y2="'+yBot+'" stroke="#5b6474" stroke-width="1" marker-start="url(#ar)" marker-end="url(#ar)"/>';
+    s+='<text x="26" y="'+((yTop+yBot)/2)+'" font-size="11" fill="#1a1f2e" text-anchor="middle" transform="rotate(-90 26 '+((yTop+yBot)/2)+')">'+nf(r.height/1000,2)+' m</text>';
+  }
+  s+='<defs><marker id="ar" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0 0L6 3L0 6z" fill="#5b6474"/></marker></defs>';
+  s+='</svg>';
+  $('stackBox').innerHTML = s;
+}
+
+function setMode(m){
+  mode = m;
+  document.querySelectorAll('#segMode button').forEach(b=>b.classList.toggle('on', b.dataset.mode===m));
+  $('bctFields').style.display = m==='bct' ? 'block' : 'none';
+  $('ectFields').classList.toggle('show', m==='ect');
+  render();
+}
+document.querySelectorAll('#segMode button').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+['inL','inW','inH','inBCT','inECT','inT','inG','inSF','inAlign','inHmax'].forEach(id=>{
+  $(id).addEventListener('input', render);
+});
+function resetCase(){
+  $('inL').value=300; $('inW').value=300; $('inH').value=200;
+  setMode('bct'); $('inBCT').value=3000; $('inECT').value=3000; $('inT').value=6;
+  $('inG').value=5.5; $('inSF').value='4'; $('inAlign').value='1'; $('inHmax').value=2;
+  render();
+}
+$('stamp').textContent = new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit'});
+render();
+</script>
+</body>
+</html>
